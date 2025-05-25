@@ -1,38 +1,28 @@
 const express = require('express');
+const { ExpressPeerServer } = require('peer');
 const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
-
+const path = require('path');
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*'
-  }
-});
 
-app.use(cors());
-app.use(express.static('public'));
-
-io.on('connection', socket => {
-  socket.on('join-room', room => {
-    socket.join(room);
-    socket.to(room).emit('user-joined', socket.id);
-
-    socket.on('signal', data => {
-      socket.to(room).emit('signal', {
-        id: socket.id,
-        signal: data
-      });
-    });
-
-    socket.on('disconnect', () => {
-      socket.to(room).emit('user-left', socket.id);
-    });
-  });
-});
-
+// Dynamic port for Railway
 const PORT = process.env.PORT || 3000;
+
+// PeerJS setup
+const peerServer = ExpressPeerServer(server, {
+  debug: true,
+  path: '/peerjs'
+});
+app.use('/peerjs', peerServer);
+
+// Serve static files from public
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve index.html for all routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/index.html'));
+});
+
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
