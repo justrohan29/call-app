@@ -1,17 +1,42 @@
-const express = require('express');
-const { ExpressPeerServer } = require('peer');
-const http = require('http');
-const path = require('path');
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const cors = require("cors");
 
 const app = express();
+app.use(cors());
+
 const server = http.createServer(app);
-const peerServer = ExpressPeerServer(server, {
-  debug: true,
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+  }
 });
 
-app.use('/peerjs', peerServer);
-app.use(express.static(path.join(__dirname, 'public')));
+io.on("connection", (socket) => {
+  socket.on("join", (room) => {
+    socket.join(room);
+    socket.to(room).emit("user-joined");
+    
+    socket.on("offer", (data) => {
+      socket.to(room).emit("offer", data);
+    });
 
-server.listen(3000, () => {
-  console.log('Server is running on http://localhost:3000');
+    socket.on("answer", (data) => {
+      socket.to(room).emit("answer", data);
+    });
+
+    socket.on("ice-candidate", (data) => {
+      socket.to(room).emit("ice-candidate", data);
+    });
+
+    socket.on("disconnect", () => {
+      socket.to(room).emit("user-left");
+    });
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Signaling server running on port ${PORT}`);
 });
