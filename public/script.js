@@ -1,82 +1,96 @@
-const status = document.getElementById("status");
-const joinBtn = document.getElementById("join-btn");
-const roomKeyInput = document.getElementById("room-key");
+const status = document.getElementById('status');
+const joinBtn = document.getElementById('join-btn');
+const roomKeyInput = document.getElementById('room-key');
 
-let socket;
 let localStream;
 let peerConnection;
+const socket = io();
 
-const configuration = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+const config = {
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 };
 
 joinBtn.onclick = async () => {
   const roomKey = roomKeyInput.value.trim();
   if (!roomKey) {
-    status.innerText = "Please enter a valid room key.";
+    status.innerText = 'Please enter a valid room key.';
     return;
   }
 
   joinBtn.disabled = true;
   roomKeyInput.disabled = true;
-
-  socket = io("https://idkcall.up.railway.app"); // ← Replace with your Railway backend URL
+  status.innerText = 'Joining room...';
 
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (err) {
-    status.innerText = "Microphone access denied or error occurred.";
+    status.innerText = 'Microphone access denied.';
     return;
   }
 
-  socket.emit("join", roomKey);
-  status.innerText = `Joined room: ${roomKey}`;
+  socket.emit('join-room', roomKey);
 
-  peerConnection = new RTCPeerConnection(configuration);
+  socket.on('user-joined', async () => {
+    peerConnection = new RTCPeerConnection(config);
+    localStream.getTracks().forEach(track => {
+      peerConnection.addTrack(track, localStream);
+    });
 
-  localStream.getTracks().forEach(track => {
-    peerConnection.addTrack(track, localStream);
-  });
+    peerConnection.onicecandidate = e => {
+      if (e.candidate) {
+        socket.emit('signal', e.candidate);
+      }
+    };
 
-  peerConnection.ontrack = event => {
-    const [remoteStream] = event.streams;
-    playStream(remoteStream);
-    status.innerText = "Call connected!";
-  };
+    peerConnection.ontrack = e => {
+      playStream(e.streams[0]);
+    };
 
-  peerConnection.onicecandidate = event => {
-    if (event.candidate) {
-      socket.emit("ice-candidate", {
-        room: roomKey,
-        candidate: event.candidate
-      });
-    }
-  };
-
-  socket.on("user-joined", async () => {
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
-    socket.emit("offer", { room: roomKey, offer });
+    socket.emit('signal', offer);
   });
 
-  socket.on("offer", async ({ offer }) => {
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    socket.emit("answer", { room: roomKey, answer });
+  socket.on('signal', async data => {
+    if (!peerConnection) {
+      peerConnection = new RTCPeerConnection(config);
+      localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+      });
+
+      peerConnection.onicecandidate = e => {
+        if (e.candidate) {
+          socket.emit('signal', e.candidate);
+        }
+      };
+
+      peerConnection.ontrack = e => {
+        playStream(e.streams[0]);
+      };
+    }
+
+    if (data.type === 'offer') {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      socket.emit('signal', answer);
+    } else if (data.type === 'answer') {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+    } else if (data.candidate) {
+      try {
+        await peerConnection.addIceCandidate(data);
+      } catch (e) {
+        console.error('Error adding ICE candidate:', e);
+      }
+    }
   });
 
-  socket.on("answer", async ({ answer }) => {
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-  });
-
-  socket.on("ice-candidate", ({ candidate }) => {
-    peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-  });
+  status.innerText = 'Connected. Waiting for peer...';
 };
 
 function playStream(stream) {
   const audio = new Audio();
   audio.srcObject = stream;
   audio.play();
+  status.innerText = 'Call connected!';
 }
