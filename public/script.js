@@ -1,82 +1,82 @@
-const status = document.getElementById('status');
-const joinBtn = document.getElementById('join-btn');
-const roomKeyInput = document.getElementById('room-key');
+const status = document.getElementById("status");
+const joinBtn = document.getElementById("join-btn");
+const roomKeyInput = document.getElementById("room-key");
 
-let myPeer;
-let myStream;
-let currentCall;
+let socket;
+let localStream;
+let peerConnection;
 
-async function startCall(roomKey) {
-  // Use roomKey as your peer ID
-  myPeer = new Peer(roomKey, {
-    host: '/',
-    port: 3000,
-    path: '/peerjs',
-  });
+const configuration = {
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+};
 
-  try {
-    myStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch (err) {
-    status.innerText = 'Microphone access denied or error occurred.';
+joinBtn.onclick = async () => {
+  const roomKey = roomKeyInput.value.trim();
+  if (!roomKey) {
+    status.innerText = "Please enter a valid room key.";
     return;
   }
 
-  myPeer.on('open', id => {
-    status.innerText = `Connected as ${id}. Waiting for someone else...`;
+  joinBtn.disabled = true;
+  roomKeyInput.disabled = true;
+
+  socket = io("https://idkcall.up.railway.app"); // ← Replace with your Railway backend URL
+
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    status.innerText = "Microphone access denied or error occurred.";
+    return;
+  }
+
+  socket.emit("join", roomKey);
+  status.innerText = `Joined room: ${roomKey}`;
+
+  peerConnection = new RTCPeerConnection(configuration);
+
+  localStream.getTracks().forEach(track => {
+    peerConnection.addTrack(track, localStream);
   });
 
-  myPeer.on('call', call => {
-    if (currentCall) {
-      call.close(); // Only allow one call at a time
-      return;
+  peerConnection.ontrack = event => {
+    const [remoteStream] = event.streams;
+    playStream(remoteStream);
+    status.innerText = "Call connected!";
+  };
+
+  peerConnection.onicecandidate = event => {
+    if (event.candidate) {
+      socket.emit("ice-candidate", {
+        room: roomKey,
+        candidate: event.candidate
+      });
     }
-    currentCall = call;
-    call.answer(myStream);
-    status.innerText = 'Receiving call...';
+  };
 
-    call.on('stream', remoteStream => {
-      playStream(remoteStream);
-      status.innerText = 'Call connected!';
-    });
-
-    call.on('close', () => {
-      status.innerText = 'Call ended.';
-      currentCall = null;
-    });
+  socket.on("user-joined", async () => {
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    socket.emit("offer", { room: roomKey, offer });
   });
 
-  // Try to call the other peer with same ID after small delay
-  // If you're second to join, this will trigger the call to first peer
-  setTimeout(() => {
-    if (myPeer.disconnected || currentCall) return;
-    const call = myPeer.call(roomKey, myStream);
-    if (call) {
-      currentCall = call;
-      call.on('stream', remoteStream => {
-        playStream(remoteStream);
-        status.innerText = 'Call connected!';
-      });
-      call.on('close', () => {
-        status.innerText = 'Call ended.';
-        currentCall = null;
-      });
-    }
-  }, 3000);
-}
+  socket.on("offer", async ({ offer }) => {
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    socket.emit("answer", { room: roomKey, answer });
+  });
+
+  socket.on("answer", async ({ answer }) => {
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+  });
+
+  socket.on("ice-candidate", ({ candidate }) => {
+    peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+  });
+};
 
 function playStream(stream) {
   const audio = new Audio();
   audio.srcObject = stream;
   audio.play();
 }
-
-joinBtn.onclick = () => {
-  const roomKey = roomKeyInput.value.trim();
-  if (!roomKey) {
-    status.innerText = 'Please enter a valid room key.';
-    return;
-  }
-  joinBtn.disabled = true;
-  roomKeyInput.disabled = true;
-  startCall(roomKey);
-};
