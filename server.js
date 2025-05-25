@@ -1,42 +1,38 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const cors = require("cors");
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
 
 const app = express();
-app.use(cors());
-
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: '*'
   }
 });
 
-io.on("connection", (socket) => {
-  socket.on("join", (room) => {
+app.use(cors());
+app.use(express.static('public'));
+
+io.on('connection', socket => {
+  socket.on('join-room', room => {
     socket.join(room);
-    socket.to(room).emit("user-joined");
-    
-    socket.on("offer", (data) => {
-      socket.to(room).emit("offer", data);
+    socket.to(room).emit('user-joined', socket.id);
+
+    socket.on('signal', data => {
+      socket.to(room).emit('signal', {
+        id: socket.id,
+        signal: data
+      });
     });
 
-    socket.on("answer", (data) => {
-      socket.to(room).emit("answer", data);
-    });
-
-    socket.on("ice-candidate", (data) => {
-      socket.to(room).emit("ice-candidate", data);
-    });
-
-    socket.on("disconnect", () => {
-      socket.to(room).emit("user-left");
+    socket.on('disconnect', () => {
+      socket.to(room).emit('user-left', socket.id);
     });
   });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Signaling server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
