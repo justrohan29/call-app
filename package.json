@@ -1,13 +1,14 @@
 {
-  "name": "voice-call-socket-app",
+  "name": "call-app",
   "version": "1.0.0",
+  "description": "Voice call app using WebRTC and Socket.IO",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "socket.io": "^4.7.2",
-    "cors": "^2.8.5"
+    "socket.io": "^4.7.2"
   }
 }
