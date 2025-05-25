@@ -1,27 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>call app or somn idk</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>idkcall?</title>
   <link rel="stylesheet" href="style.css" />
-
-  <!-- Favicon: simple heart SVG as data URI -->
-  <link
-    rel="icon"
-    href="data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23d64a4a'%3e%3cpath d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41 0.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3e%3c/svg%3e"
-  />
+  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/878/878052.png" />
 </head>
 <body>
   <div class="container">
-    <h1>
-      call app or somn idk
-      <span class="heart">❤️</span>
-    </h1>
+    <h1>💛 Talk to Bae 💛</h1>
     <input type="text" id="room-key" placeholder="Enter Room Key" />
-    <button id="join-btn">Join Room</button>
-    <div class="status" id="status">Enter a room key to start</div>
+    <button id="join-btn">Join Call</button>
+    <p id="status">Waiting to connect...</p>
   </div>
+  <script src="/socket.io/socket.io.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
